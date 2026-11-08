@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+[ -n "${BASH_VERSION:-}" ] || exec bash "$0" "$@"
+set -euo pipefail
+cd "$(dirname "$0")"
+
+export NIX_CONFIG="experimental-features = nix-command flakes"
+[ "$(id -u)" -eq 0 ] || { echo "Run as root (sudo -i first)."; exit 1; }
+
+HOST="${1:-chad-os}"
+get() { nix eval --raw --file "hosts/$HOST/settings.nix" "$1"; }
+NUSER=$(get user)
+DEVICE=$(get device)
+
+LOGFILE="/tmp/installation.log"
+exec > >(tee -a "$LOGFILE") 2>&1
+
+# Prompts
+read -rsp "Enter root password: " ROOT_PASSWORD; echo
+read -rsp "Enter $NUSER password: " NUSER_PASSWORD; echo
+
+lsblk -f
+echo "WARNING: All data on $DEVICE will be erased!"
+read -rp "Type ERASE to continue: " CONFIRM
+[ "$CONFIRM" = "ERASE" ] || { echo "Aborting. Disk untouched."; exit 1; }
+
+# Hardware config
+nixos-generate-config --no-filesystems --show-hardware-config \
+  > "hosts/$HOST/hardware-configuration.nix"
+git add -f "hosts/$HOST/hardware-configuration.nix"
+
+# Partition, format, mount
+nix run github:nix-community/disko -- \
+  --mode destroy,format,mount --yes-wipe-all-disks \
+  --flake ".#$HOST"
+
+# Install
+nixos-install --flake ".#$HOST" --no-root-passwd
+
+# Passwords
+printf 'root:%s\n%s:%s\n' "$ROOT_PASSWORD" "$NUSER" "$NUSER_PASSWORD" \
+  | chpasswd --root /mnt
+
+# Copy of the repo in the new home
+mkdir -p "/mnt/home/$NUSER"
+cp -r "$PWD" "/mnt/home/$NUSER/chad-os"
+nixos-enter --root /mnt -c "chown -R $NUSER:users /home/$NUSER"
+
+# Log backup
+cp "$LOGFILE" /mnt/var/log/
+umount -R /mnt
+reboot
