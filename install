@@ -39,7 +39,7 @@ nixos-install --flake ".#$HOST" --no-root-passwd
 
 # Passwords
 printf 'root:%s\n%s:%s\n' "$ROOT_PASSWORD" "$NUSER" "$NUSER_PASSWORD" \
-  | chpasswd --root /mnt
+  | nixos-enter --root /mnt -c chpasswd
 
 # Copy of the repo in the new home
 mkdir -p "/mnt/home/$NUSER"
