@@ -43,7 +43,7 @@ printf 'root:%s\n%s:%s\n' "$ROOT_PASSWORD" "$NUSER" "$NUSER_PASSWORD" \
 
 # Copy of the repo in the new home
 mkdir -p "/mnt/home/$NUSER"
-cp -r "$PWD" "/mnt/home/$NUSER/chad-os"
+cp -r "$PWD" "/mnt/home/$NUSER/.sys"
 nixos-enter --root /mnt -c "chown -R $NUSER:users /home/$NUSER"
 
 # Log backup
